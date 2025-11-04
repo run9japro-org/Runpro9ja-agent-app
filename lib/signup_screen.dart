@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import '../termsandcondition.dart';
 import 'Auth/auth_services.dart';
 import 'otp_screen.dart';
+import 'package:flutter/gestures.dart';
+
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -36,6 +39,11 @@ class _SignupScreenState extends State<SignupScreen> {
     final authService = AuthService();
 
     try {
+      // Convert date from DD/MM/YYYY to YYYY-MM-DD format
+      final dobText = _controllers['dob']!.text.trim();
+      final dobParts = dobText.split('/');
+      final formattedDob = '${dobParts[2]}-${dobParts[1]}-${dobParts[0]}'; // YYYY-MM-DD
+
       final data = {
         "role": "agent",
         "fullName": _controllers['name']!.text.trim(),
@@ -43,8 +51,10 @@ class _SignupScreenState extends State<SignupScreen> {
         "phone": _controllers['phone']!.text.trim(),
         "password": _controllers['password']!.text.trim(),
         "location": _controllers['location']!.text.trim(),
-        "dob": _controllers['dob']!.text.trim(), // dd/mm/yyyy
+        "dob": formattedDob, // Now in YYYY-MM-DD format
       };
+
+      print('Sending data: $data'); // Debug print
 
       final response = await authService.register(data);
 
@@ -219,14 +229,23 @@ class _SignupScreenState extends State<SignupScreen> {
                       color: Colors.grey[600],
                     ),
                     children: [
-                      const TextSpan(
-                          text: "By clicking continue, you are agreeing to our "),
+                      const TextSpan(text: "By clicking continue, you are agreeing to our "),
                       TextSpan(
                         text: "Terms of Service",
                         style: TextStyle(
                           color: Colors.green[700],
                           fontWeight: FontWeight.w600,
+                          decoration: TextDecoration.underline,
                         ),
+                        recognizer: TapGestureRecognizer()
+                          ..onTap = () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const TermsAndConditionsScreen(),
+                              ),
+                            );
+                          },
                       ),
                       const TextSpan(text: " and "),
                       TextSpan(
@@ -234,12 +253,15 @@ class _SignupScreenState extends State<SignupScreen> {
                         style: TextStyle(
                           color: Colors.green[700],
                           fontWeight: FontWeight.w600,
+                          decoration: TextDecoration.underline,
                         ),
                       ),
                     ],
                   ),
                 ),
+
                 const SizedBox(height: 20),
+
 
                 const SizedBox(height: 20),
 

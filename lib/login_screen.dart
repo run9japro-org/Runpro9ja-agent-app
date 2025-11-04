@@ -2,11 +2,12 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:jwt_decoder/jwt_decoder.dart'; // Add this package
+import 'package:jwt_decoder/jwt_decoder.dart';
+import 'package:local_auth/local_auth.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-// Import your screens
-import 'Representative/professional_orders_screen.dart';
-import 'representative/professional_orders_screen.dart' hide ProfessionalOrdersScreen; // Add this import
+import 'representative/professional_orders_screen.dart';
+import 'Other_screens/forget_password.dart';
 
 class AgentLoginPage extends StatefulWidget {
   const AgentLoginPage({super.key});
@@ -17,49 +18,97 @@ class AgentLoginPage extends StatefulWidget {
 
 class _AgentLoginPageState extends State<AgentLoginPage> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+
+  final LocalAuthentication _localAuth = LocalAuthentication();
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _canCheckBiometrics = false;
+  bool _hasStoredCredentials = false;
 
-  // Function to decode JWT and get user role
+  @override
+  void initState() {
+    super.initState();
+    _checkBiometrics();
+  }
+
+  Future<void> _checkBiometrics() async {
+    try {
+      final canAuthenticate = await _localAuth.canCheckBiometrics;
+      final hasCredentials = await _secureStorage.containsKey(key: 'agent_email') &&
+          await _secureStorage.containsKey(key: 'agent_password');
+
+      setState(() {
+        _canCheckBiometrics = canAuthenticate;
+        _hasStoredCredentials = hasCredentials;
+      });
+
+      print("🔐 Biometric available: $_canCheckBiometrics");
+      print("📦 Stored credentials: $_hasStoredCredentials");
+    } catch (e) {
+      print("❌ Biometric check failed: $e");
+    }
+  }
+
+  // Decode token to extract role
   String _getUserRoleFromToken(String token) {
     try {
-      final Map<String, dynamic> decodedToken = JwtDecoder.decode(token);
-      return decodedToken['role']?.toString() ?? 'agent';
+      final decodedToken = JwtDecoder.decode(token);
+      return decodedToken['role']?.toString().toLowerCase() ?? 'agent';
     } catch (e) {
-      print('Error decoding token: $e');
+      print("Token decode error: $e");
       return 'agent';
     }
   }
 
-  // Function to get user data from token
-  Map<String, dynamic> _getUserDataFromToken(String token) {
+  Future<void> _authenticateWithBiometrics() async {
+    if (!_canCheckBiometrics || !_hasStoredCredentials) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("No saved credentials or biometrics unavailable.")),
+      );
+      return;
+    }
+
     try {
-      final Map<String, dynamic> decodedToken = JwtDecoder.decode(token);
-      return {
-        'id': decodedToken['id']?.toString(),
-        'role': decodedToken['role']?.toString() ?? 'agent',
-        'fullName': decodedToken['fullName']?.toString(),
-        'email': decodedToken['email']?.toString(),
-      };
+      final bool authenticated = await _localAuth.authenticate(
+        localizedReason: 'Authenticate to access your RunPro 9ja account',
+        biometricOnly: false,
+        sensitiveTransaction: true,
+        persistAcrossBackgrounding: false,
+      );
+
+      if (authenticated) {
+        final email = await _secureStorage.read(key: 'agent_email');
+        final password = await _secureStorage.read(key: 'agent_password');
+
+        if (email != null && password != null) {
+          _emailController.text = email;
+          _passwordController.text = password;
+          _loginAgent(fromBiometric: true);
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Authentication failed")),
+        );
+      }
     } catch (e) {
-      print('Error decoding user data: $e');
-      return {};
+      print("❌ Biometric auth error: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
     }
   }
 
-  Future<void> _loginAgent() async {
-    if (!_formKey.currentState!.validate()) return;
+  Future<void> _loginAgent({bool fromBiometric = false}) async {
+    if (!fromBiometric && !_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
     try {
       final url = Uri.parse("https://runpro9ja-pxqoa.ondigitalocean.app/api/auth/login");
-
-      print('🌐 Making request to: $url');
-
       final response = await http.post(
         url,
         headers: {"Content-Type": "application/json"},
@@ -69,78 +118,45 @@ class _AgentLoginPageState extends State<AgentLoginPage> {
         }),
       );
 
-      print('📥 Response status: ${response.statusCode}');
-      print('📥 Response body: ${response.body}');
-
       final data = jsonDecode(response.body);
-
       if (response.statusCode == 200 && data["token"] != null) {
         final token = data["token"];
-
-        // Save token
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString("jwtToken", token);
-        print("✅ Token saved successfully");
 
-        // Get user role from token
+        // Save credentials for biometric login next time
+        if (!fromBiometric) {
+          await _secureStorage.write(key: 'agent_email', value: _emailController.text.trim());
+          await _secureStorage.write(key: 'agent_password', value: _passwordController.text.trim());
+        }
+
         final userRole = _getUserRoleFromToken(token);
-        final userData = _getUserDataFromToken(token);
-
-        print('👤 User Role: $userRole');
-        print('👤 User Data: $userData');
-
         if (!mounted) return;
 
-        // 🔥 REPRESENTATIVE REDIRECT LOGIC
         if (userRole == 'representative') {
-          print('🎯 Representative detected - redirecting to Professional Orders');
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(
-              builder: (_) => ProfessionalOrdersScreen(),
-            ),
+            MaterialPageRoute(builder: (_) => ProfessionalOrdersScreen()),
           );
-          return; // Important: Stop further execution
-        }
-
-        // 🔥 REGULAR AGENT LOGIC (existing flow)
-        print('🎯 Regular agent - checking profile completion');
-
-        // Check if profile/service is completed
-        final profileRes = await http.get(
-          Uri.parse("https://runpro9ja-backend.onrender.com/api/agents/me"),
-          headers: {"Authorization": "Bearer $token"},
-        );
-
-        print('📊 Profile check status: ${profileRes.statusCode}');
-
-        if (profileRes.statusCode == 200) {
-          // ✅ Profile exists → Dashboard
-          print('✅ Profile exists - redirecting to main dashboard');
-          Navigator.pushReplacementNamed(context, '/main');
         } else {
-          // ❌ No profile yet → Service Selection
-          print('❌ No profile - redirecting to service selection');
-          Navigator.pushReplacementNamed(context, '/selection');
-        }
+          final profileRes = await http.get(
+            Uri.parse("https://runpro9ja-pxqoa.ondigitalocean.app/api/agents/me"),
+            headers: {"Authorization": "Bearer $token"},
+          );
 
+          if (profileRes.statusCode == 200) {
+            Navigator.pushReplacementNamed(context, '/main');
+          } else {
+            Navigator.pushReplacementNamed(context, '/selection');
+          }
+        }
       } else {
-        // Login failed - show specific error message
-        String errorMessage = data["message"] ?? "Login failed";
-        if (response.statusCode == 404) {
-          errorMessage = "User not found";
-        } else if (response.statusCode == 401) {
-          errorMessage = "Invalid password";
-        } else if (response.statusCode == 403) {
-          errorMessage = "Account not verified";
-        }
-
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMessage)),
+          SnackBar(content: Text(data["message"] ?? "Login failed")),
         );
       }
     } catch (e) {
-      print('❌ Full error: $e');
+      print("❌ Login error: $e");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Error: ${e.toString()}")),
       );
@@ -161,13 +177,10 @@ class _AgentLoginPageState extends State<AgentLoginPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // App Logo
                 Image.asset('assets/img.png', width: 100, height: 100),
                 const SizedBox(height: 12),
-
-                // Welcome Text
                 Text(
-                  "Welcome Back",
+                  "Agent Login",
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
@@ -176,7 +189,6 @@ class _AgentLoginPageState extends State<AgentLoginPage> {
                 ),
                 const SizedBox(height: 30),
 
-                // Email Field
                 TextFormField(
                   controller: _emailController,
                   decoration: InputDecoration(
@@ -188,12 +200,10 @@ class _AgentLoginPageState extends State<AgentLoginPage> {
                     filled: true,
                     fillColor: Colors.white,
                   ),
-                  validator: (value) =>
-                  value!.isEmpty ? "Enter your email" : null,
+                  validator: (value) => value!.isEmpty ? "Enter your email" : null,
                 ),
                 const SizedBox(height: 16),
 
-                // Password Field
                 TextFormField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
@@ -214,23 +224,25 @@ class _AgentLoginPageState extends State<AgentLoginPage> {
                     filled: true,
                     fillColor: Colors.white,
                   ),
-                  validator: (value) =>
-                  value!.isEmpty ? "Enter your password" : null,
+                  validator: (value) => value!.isEmpty ? "Enter your password" : null,
                 ),
                 const SizedBox(height: 10),
 
-                // Forgot Password
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
-                    onPressed: () {},
-                    child: const Text("Forgot Password?",
-                        style: TextStyle(color: Colors.black)),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => ForgotPasswordScreen()),
+                      );
+                    },
+                    child: const Text("Forgot Password?", style: TextStyle(color: Colors.black)),
                   ),
                 ),
                 const SizedBox(height: 20),
 
-                // Login Button
+                // Login button
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -243,31 +255,27 @@ class _AgentLoginPageState extends State<AgentLoginPage> {
                     ),
                     onPressed: _isLoading ? null : _loginAgent,
                     child: _isLoading
-                        ? const CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    )
-                        : const Text(
-                      "Login",
-                      style: TextStyle(fontSize: 18, color: Colors.white),
-                    ),
+                        ? const CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Colors.white))
+                        : const Text("Login", style: TextStyle(fontSize: 18, color: Colors.white)),
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
-                // Signup Redirect
+                // Biometric login button
+                if (_canCheckBiometrics && _hasStoredCredentials)
+                  IconButton(
+                    icon: const Icon(Icons.fingerprint, size: 48, color: Colors.green),
+                    onPressed: _authenticateWithBiometrics,
+                  ),
+
+                const SizedBox(height: 20),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Text("Don't have an account?"),
                     TextButton(
-                      onPressed: () {
-                        Navigator.pushNamed(context, '/signup');
-                      },
-                      child: const Text(
-                        "Sign Up",
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, color: Colors.black),
-                      ),
+                      onPressed: () => Navigator.pushNamed(context, '/signup'),
+                      child: const Text("Sign Up", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
                     ),
                   ],
                 ),

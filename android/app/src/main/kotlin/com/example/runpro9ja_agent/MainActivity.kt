@@ -1,5 +1,6 @@
-package com.example.runpro9ja_agent
+package com.runpro9ja.agent
 
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 
-class MainActivity : FlutterActivity()
+class MainActivity: FlutterFragmentActivity() {
+}

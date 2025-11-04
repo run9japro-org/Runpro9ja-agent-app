@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:runpro9ja_agent/Other_screens/support_chat_screen.dart';
 import '../Auth/auth_services.dart';
 import '../Other_screens/notification_screen.dart';
 
@@ -250,12 +251,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         icon: Icons.logout,
                         text: 'Logout',
                         onTap: _logout,
-                      ),
-                      MenuItem(
-                        icon: Icons.headset_mic_outlined,
-                        text: 'Customer Service',
-                        onTap: () {},
-                        isLast: true,
                       ),
                     ],
                   ),

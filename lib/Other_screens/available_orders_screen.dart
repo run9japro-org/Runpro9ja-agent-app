@@ -34,17 +34,44 @@ class _AvailableOrdersScreenState extends State<AvailableOrdersScreen>
         _error = '';
       });
 
-      final [directOffers, publicOrders] = await Future.wait([
-        _orderService.getDirectOffers(),
-        _orderService.getPublicOrders(),
-      ]);
+      print('🔄 Loading orders...');
+
+      // Check authentication first
+      final token = await _orderService.authService.getToken();
+      print('🔑 User token available: ${token != null && token.isNotEmpty}');
+
+      // Get user profile to check if user is an agent
+      try {
+        final userProfile = await _orderService.authService.getUserProfile();
+        print('👤 User role: ${userProfile['role']}');
+        print('👤 User service types: ${userProfile['serviceTypes']}');
+      } catch (e) {
+        print('⚠️ Could not fetch user profile: $e');
+      }
+
+      final results = await Future.wait([
+        _orderService.getDirectOffers().catchError((e) {
+          print('❌ Error loading direct offers: $e');
+          return <Order>[];
+        }),
+        _orderService.getPublicOrders().catchError((e) {
+          print('❌ Error loading public orders: $e');
+          return <Order>[];
+        }),
+      ], eagerError: false);
 
       setState(() {
-        _directOffers = directOffers;
-        _publicOrders = publicOrders;
+        _directOffers = results[0];
+        _publicOrders = results[1];
         _isLoading = false;
       });
+
+      print('✅ Orders loaded:');
+      print('   - Direct offers: ${_directOffers.length}');
+      print('   - Public orders: ${_publicOrders.length}');
+
     } catch (e) {
+      print('💥 Error in _loadOrders: $e');
       setState(() {
         _error = 'Failed to load orders: $e';
         _isLoading = false;
@@ -120,6 +147,21 @@ class _AvailableOrdersScreenState extends State<AvailableOrdersScreen>
         ),
       );
     }
+  }
+
+  // FIXED: Better logic for showing action buttons
+  bool _shouldShowActionButtons(Order order, bool isDirectOffer) {
+    // Show buttons for orders that are still available/active
+    final availableStatuses = [
+      'pending_agent_response',
+      'public',
+      'requested',
+      'available',
+      'open',
+      'waiting'
+    ];
+
+    return availableStatuses.contains(order.status);
   }
 
   void _showOrderDetails(Order order) {
@@ -381,6 +423,9 @@ class _AvailableOrdersScreenState extends State<AvailableOrdersScreen>
       case 'in-progress': return 'In Progress';
       case 'completed': return 'Completed';
       case 'rejected': return 'Rejected';
+      case 'cancelled': return 'Cancelled';
+      case 'pending_agent_response': return 'Waiting for Agent';
+      case 'public': return 'Available';
       default: return status;
     }
   }
@@ -451,6 +496,8 @@ class _AvailableOrdersScreenState extends State<AvailableOrdersScreen>
   }
 
   Widget _buildOrderCard(Order order, bool isDirectOffer) {
+    final showActions = _shouldShowActionButtons(order, isDirectOffer);
+
     return Container(
       margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Card(
@@ -499,14 +546,14 @@ class _AvailableOrdersScreenState extends State<AvailableOrdersScreen>
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.star, size: 12, color: Colors.white),
+                          Icon(Icons.star, size: 12, color: Colors.orange),
                           SizedBox(width: 4),
                           Text(
                             'Direct Offer',
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
-                              color: Colors.white,
+                              color: Colors.orange,
                             ),
                           ),
                         ],
@@ -581,7 +628,9 @@ class _AvailableOrdersScreenState extends State<AvailableOrdersScreen>
                         tooltip: 'View Details',
                         color: Colors.grey[600],
                       ),
-                      if (order.status == 'pending_agent_response' || order.status == 'public') ...[
+
+                      // FIXED: Show buttons based on the new logic
+                      if (showActions) ...[
                         SizedBox(width: 8),
                         // Reject Button
                         OutlinedButton(

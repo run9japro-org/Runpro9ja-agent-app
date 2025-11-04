@@ -4,8 +4,7 @@ import '../Model/order_model.dart';
 import 'auth_services.dart';
 
 class OrderService {
-  static const String baseUrl = "https://runpro9ja-pxqoa.ondigitalocean.app"
-      "";
+  static const String baseUrl = "https://runpro9ja-pxqoa.ondigitalocean.app/api"; // ✅ FIXED: Added /api
   final AuthService authService;
 
   OrderService(this.authService);
@@ -19,55 +18,162 @@ class OrderService {
     }
   }
 
-  // Get direct offers to agent
+  // Get direct offers to agent - WITH COMPREHENSIVE DEBUGGING
   Future<List<Order>> getDirectOffers() async {
     try {
       final token = await _getToken();
       if (token == null) throw Exception('Not authenticated');
 
+      final url = '$baseUrl/orders/direct-offers'; // ✅ FIXED: Removed /api from URL since it's in baseUrl now
+      print('🔍 Fetching direct offers from: $url');
+      print('🔑 Token available: ${token.isNotEmpty}');
+
       final response = await http.get(
-        Uri.parse('$baseUrl/api/orders/direct-offers'),
+        Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
       );
 
+      print('📥 Direct offers response status: ${response.statusCode}');
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        return (data['orders'] as List).map((order) => Order.fromJson(order)).toList();
+        print('📥 Direct offers response body: ${response.body}');
+
+        // Debug the response structure
+        print('🔍 Direct offers data structure:');
+        print('   - data type: ${data.runtimeType}');
+        print('   - data keys: ${data.keys}');
+
+        List<dynamic> ordersList = [];
+
+        if (data['orders'] != null && data['orders'] is List) {
+          ordersList = data['orders'];
+          print('   - Found orders in "orders" key: ${ordersList.length}');
+        } else if (data['data'] != null && data['data']['orders'] != null && data['data']['orders'] is List) {
+          ordersList = data['data']['orders'];
+          print('   - Found orders in "data.orders" key: ${ordersList.length}');
+        } else if (data is List) {
+          ordersList = data;
+          print('   - Data is direct list: ${ordersList.length}');
+        } else {
+          print('   - No orders found in expected keys');
+          print('   - Available keys: ${data.keys}');
+        }
+
+        if (ordersList.isEmpty) {
+          print('⚠️ No direct offers found in response');
+          return [];
+        }
+
+        // Debug each order
+        for (var order in ordersList) {
+          print('   - Order: ${order['_id']}');
+          print('     serviceCategory: ${order['serviceCategory']}');
+          print('     requestedAgent: ${order['requestedAgent']}');
+          print('     isDirectOffer: ${order['isDirectOffer']}');
+          print('     status: ${order['status']}');
+        }
+
+        final orders = ordersList.map((order) {
+          try {
+            return Order.fromJson(order);
+          } catch (e) {
+            print('❌ Error parsing order: $e');
+            print('❌ Problematic order data: $order');
+            return null;
+          }
+        }).where((order) => order != null).cast<Order>().toList();
+
+        print('✅ Successfully parsed ${orders.length} direct offers');
+        return orders;
       } else {
-        throw Exception('Failed to load direct offers: ${response.statusCode}');
+        print('❌ Failed to load direct offers: ${response.statusCode} - ${response.body}');
+        throw Exception('Failed to load direct offers: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
-      print('Error fetching direct offers: $e');
-      rethrow;
+      print('💥 Error fetching direct offers: $e');
+      return []; // Return empty list instead of throwing
     }
   }
 
-  // Get public orders
+  // Get public orders - WITH COMPREHENSIVE DEBUGGING
   Future<List<Order>> getPublicOrders() async {
     try {
       final token = await _getToken();
       if (token == null) throw Exception('Not authenticated');
 
+      final url = '$baseUrl/orders/public-orders'; // ✅ FIXED: Removed /api from URL
+      print('🔍 Fetching public orders from: $url');
+
       final response = await http.get(
-        Uri.parse('$baseUrl/api/orders/public-orders'),
+        Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
       );
 
+      print('📥 Public orders response status: ${response.statusCode}');
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        return (data['orders'] as List).map((order) => Order.fromJson(order)).toList();
+        print('📥 Public orders response body: ${response.body}');
+
+        // Debug the response structure
+        print('🔍 Public orders data structure:');
+        print('   - data type: ${data.runtimeType}');
+        print('   - data keys: ${data.keys}');
+
+        List<dynamic> ordersList = [];
+
+        if (data['orders'] != null && data['orders'] is List) {
+          ordersList = data['orders'];
+          print('   - Found orders in "orders" key: ${ordersList.length}');
+        } else if (data['data'] != null && data['data']['orders'] != null && data['data']['orders'] is List) {
+          ordersList = data['data']['orders'];
+          print('   - Found orders in "data.orders" key: ${ordersList.length}');
+        } else if (data is List) {
+          ordersList = data;
+          print('   - Data is direct list: ${ordersList.length}');
+        } else {
+          print('   - No orders found in expected keys');
+          print('   - Available keys: ${data.keys}');
+        }
+
+        if (ordersList.isEmpty) {
+          print('⚠️ No public orders found in response');
+          return [];
+        }
+
+        // Debug each order
+        for (var order in ordersList) {
+          print('   - Order: ${order['_id']}');
+          print('     serviceCategory: ${order['serviceCategory']}');
+          print('     status: ${order['status']}');
+        }
+
+        final orders = ordersList.map((order) {
+          try {
+            return Order.fromJson(order);
+          } catch (e) {
+            print('❌ Error parsing order: $e');
+            print('❌ Problematic order data: $order');
+            return null;
+          }
+        }).where((order) => order != null).cast<Order>().toList();
+
+        print('✅ Successfully parsed ${orders.length} public orders');
+        return orders;
       } else {
-        throw Exception('Failed to load public orders: ${response.statusCode}');
+        print('❌ Failed to load public orders: ${response.statusCode} - ${response.body}');
+        throw Exception('Failed to load public orders: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
-      print('Error fetching public orders: $e');
-      rethrow;
+      print('💥 Error fetching public orders: $e');
+      return []; // Return empty list instead of throwing
     }
   }
 
@@ -77,18 +183,51 @@ class OrderService {
       final token = await _getToken();
       if (token == null) throw Exception('Not authenticated');
 
+      final url = '$baseUrl/orders/agent/my-orders'; // ✅ FIXED: Removed /api from URL
+      print('🔍 Fetching agent orders from: $url');
+
       final response = await http.get(
-        Uri.parse('$baseUrl/api/orders/agent/my-orders'),
+        Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
       );
 
+      print('📥 Agent orders response status: ${response.statusCode}');
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        return (data['orders'] as List).map((order) => Order.fromJson(order)).toList();
+        print('📥 Agent orders response body: ${response.body}');
+
+        List<dynamic> ordersList = [];
+
+        if (data['orders'] != null && data['orders'] is List) {
+          ordersList = data['orders'];
+        } else if (data['data'] != null && data['data']['orders'] != null && data['data']['orders'] is List) {
+          ordersList = data['data']['orders'];
+        } else if (data is List) {
+          ordersList = data;
+        }
+
+        if (ordersList.isEmpty) {
+          print('⚠️ No agent orders found');
+          return [];
+        }
+
+        final orders = ordersList.map((order) {
+          try {
+            return Order.fromJson(order);
+          } catch (e) {
+            print('❌ Error parsing order: $e');
+            return null;
+          }
+        }).where((order) => order != null).cast<Order>().toList();
+
+        print('✅ Successfully parsed ${orders.length} agent orders');
+        return orders;
       } else {
+        print('❌ Failed to load agent orders: ${response.statusCode} - ${response.body}');
         throw Exception('Failed to load agent orders: ${response.statusCode}');
       }
     } catch (e) {
@@ -97,61 +236,73 @@ class OrderService {
     }
   }
 
-  // Accept direct order
+  // Accept direct order - WITH DEBUGGING
   Future<bool> acceptDirectOrder(String orderId) async {
     try {
       final token = await _getToken();
       if (token == null) throw Exception('Not authenticated');
 
+      final url = '$baseUrl/orders/$orderId/accept-direct'; // ✅ FIXED: Removed /api from URL
+      print('✅ Accepting direct order: $url');
+
       final response = await http.patch(
-        Uri.parse('$baseUrl/api/orders/$orderId/accept-direct'),
+        Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
       );
 
+      print('📥 Accept direct order response: ${response.statusCode} - ${response.body}');
       return response.statusCode == 200;
     } catch (e) {
-      print('Error accepting direct order: $e');
+      print('❌ Error accepting direct order: $e');
       return false;
     }
   }
 
-  // Accept public order
+  // Accept public order - WITH DEBUGGING
   Future<bool> acceptPublicOrder(String orderId) async {
     try {
       final token = await _getToken();
       if (token == null) throw Exception('Not authenticated');
 
+      final url = '$baseUrl/orders/$orderId/accept-public'; // ✅ FIXED: Removed /api from URL
+      print('✅ Accepting public order: $url');
+
       final response = await http.patch(
-        Uri.parse('$baseUrl/api/orders/$orderId/accept-public'),
+        Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
       );
 
+      print('📥 Accept public order response: ${response.statusCode} - ${response.body}');
       return response.statusCode == 200;
     } catch (e) {
-      print('Error accepting public order: $e');
+      print('❌ Error accepting public order: $e');
       return false;
     }
   }
 
-  // ✅ NEW: Reject direct order
+  // Reject direct order - WITH DEBUGGING
   Future<bool> rejectDirectOrder(String orderId, {String? reason}) async {
     try {
       final token = await _getToken();
       if (token == null) throw Exception('Not authenticated');
 
+      final url = '$baseUrl/orders/$orderId/reject-direct'; // ✅ FIXED: Removed /api from URL
+      print('❌ Rejecting direct order: $url');
+      print('   - Reason: $reason');
+
       final Map<String, dynamic> body = {};
       if (reason != null && reason.isNotEmpty) {
         body['reason'] = reason;
       }
 
       final response = await http.patch(
-        Uri.parse('$baseUrl/api/orders/$orderId/reject-direct'),
+        Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -159,28 +310,31 @@ class OrderService {
         body: json.encode(body),
       );
 
+      print('📥 Reject direct order response: ${response.statusCode} - ${response.body}');
       return response.statusCode == 200;
     } catch (e) {
-      print('Error rejecting direct order: $e');
+      print('❌ Error rejecting direct order: $e');
       return false;
     }
   }
 
-// ✅ NEW: Reject public order (if agent wants to decline seeing it again)
+  // Reject public order - WITH DEBUGGING
   Future<bool> declinePublicOrder(String orderId, {String? reason}) async {
     try {
       final token = await _getToken();
       if (token == null) throw Exception('Not authenticated');
 
+      final url = '$baseUrl/orders/$orderId/decline-public'; // ✅ FIXED: Removed /api from URL
+      print('❌ Declining public order: $url');
+      print('   - Reason: $reason');
+
       final Map<String, dynamic> body = {};
       if (reason != null && reason.isNotEmpty) {
         body['reason'] = reason;
       }
 
-      // This would be a custom endpoint you might want to create
-      // For now, we'll use the same pattern as reject-direct
       final response = await http.patch(
-        Uri.parse('$baseUrl/api/orders/$orderId/reject-direct'), // Using same endpoint for now
+        Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -188,21 +342,26 @@ class OrderService {
         body: json.encode(body),
       );
 
+      print('📥 Decline public order response: ${response.statusCode} - ${response.body}');
       return response.statusCode == 200;
     } catch (e) {
-      print('Error declining public order: $e');
+      print('❌ Error declining public order: $e');
       return false;
     }
   }
 
-  // Update order status
+  // Update order status - WITH DEBUGGING
   Future<bool> updateOrderStatus(String orderId, String status) async {
     try {
       final token = await _getToken();
       if (token == null) throw Exception('Not authenticated');
 
+      final url = '$baseUrl/orders/$orderId/status'; // ✅ FIXED: Removed /api from URL
+      print('🔄 Updating order status: $url');
+      print('   - New status: $status');
+
       final response = await http.patch(
-        Uri.parse('$baseUrl/api/orders/$orderId/status'),
+        Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -210,35 +369,43 @@ class OrderService {
         body: json.encode({'status': status}),
       );
 
+      print('📥 Update status response: ${response.statusCode} - ${response.body}');
       return response.statusCode == 200;
     } catch (e) {
-      print('Error updating order status: $e');
+      print('❌ Error updating order status: $e');
       return false;
     }
   }
 
-  // Get order by ID
+  // Get order by ID - WITH DEBUGGING
   Future<Order?> getOrderById(String orderId) async {
     try {
       final token = await _getToken();
       if (token == null) throw Exception('Not authenticated');
 
+      final url = '$baseUrl/orders/$orderId'; // ✅ FIXED: Removed /api from URL
+      print('🔍 Fetching order by ID: $url');
+
       final response = await http.get(
-        Uri.parse('$baseUrl/api/orders/$orderId'),
+        Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
       );
 
+      print('📥 Get order by ID response: ${response.statusCode}');
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        return Order.fromJson(data['order']);
+        print('📥 Order data: ${response.body}');
+        return Order.fromJson(data['order'] ?? data);
       } else {
+        print('❌ Failed to fetch order: ${response.statusCode} - ${response.body}');
         return null;
       }
     } catch (e) {
-      print('Error fetching order: $e');
+      print('❌ Error fetching order: $e');
       return null;
     }
   }
