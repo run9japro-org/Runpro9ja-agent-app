@@ -45,5 +45,29 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+
+	<!-- 🔽 ADD THESE NEW PRIVACY DESCRIPTIONS HERE 🔽 -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>This app needs your location to show nearby service requests and provide accurate delivery tracking</string>
+
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>This app needs your location in the background to provide real-time service updates and track your position during active deliveries</string>
+
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>This app needs your location to provide continuous service updates and delivery tracking</string>
+
+	<key>NSCameraUsageDescription</key>
+	<string>This app needs camera access to scan documents and capture service-related photos</string>
+
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app needs photo library access to upload documents and service-related images</string>
+
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app needs microphone access for voice calls with customers and audio recordings during services</string>
+
+	<key>NSFaceIDUsageDescription</key>
+	<string>This app uses Face ID for secure agent login and authentication</string>
+	<!-- 🔼 ADD THESE NEW PRIVACY DESCRIPTIONS HERE 🔼 -->
+
 </dict>
 </plist>
