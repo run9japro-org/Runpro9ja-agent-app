@@ -15,7 +15,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.example.runpro9ja_agent"
+    namespace = "com.runpro9ja.agent"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
