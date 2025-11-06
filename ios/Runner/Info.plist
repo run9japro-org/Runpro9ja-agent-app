@@ -24,10 +24,28 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+
+	<!-- 🔽 CRITICAL FIXES FOR IPAD CRASH 🔽 -->
+
+	<!-- 1. DECLARE SUPPORT FOR BOTH IPHONE AND IPAD -->
+	<key>UIDeviceFamily</key>
+	<array>
+		<integer>1</integer> <!-- iPhone -->
+		<integer>2</integer> <!-- iPad -->
+	</array>
+
+	<!-- 2. FORCE FULL SCREEN ON IPAD (PREVENTS LAYOUT ISSUES) -->
+	<key>UIRequiresFullScreen</key>
+	<true/>
+
+	<!-- 3. USE FLUTTER'S DEFAULT LAUNCH SCREEN (REMOVE MAIN STORYBOARD) -->
+	<!-- ❌ REMOVE THIS LINE: <key>UIMainStoryboardFile</key> -->
+	<!-- ❌ REMOVE THIS LINE: <string>Main</string> -->
+
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
-	<key>UIMainStoryboardFile</key>
-	<string>Main</string>
+
+	<!-- 4. ORIENTATION SUPPORT -->
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
@@ -41,12 +59,14 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+
+	<!-- 5. PERFORMANCE SETTINGS -->
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 
-	<!-- 🔽 ADD THESE NEW PRIVACY DESCRIPTIONS HERE 🔽 -->
+	<!-- 🔽 PRIVACY DESCRIPTIONS (YOURS ARE GOOD) 🔽 -->
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>This app needs your location to show nearby service requests and provide accurate delivery tracking</string>
 
@@ -67,7 +87,6 @@
 
 	<key>NSFaceIDUsageDescription</key>
 	<string>This app uses Face ID for secure agent login and authentication</string>
-	<!-- 🔼 ADD THESE NEW PRIVACY DESCRIPTIONS HERE 🔼 -->
 
 </dict>
 </plist>

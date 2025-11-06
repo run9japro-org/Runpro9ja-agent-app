@@ -36,7 +36,7 @@ class _OtpScreenState extends State<OtpScreen> {
 
     if (result['success'] == true) {
       if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/selection');
+      Navigator.pushReplacementNamed(context, '/login');
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(result['message'] ?? "OTP verification failed")),
