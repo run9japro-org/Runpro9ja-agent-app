@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:local_auth/local_auth.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+// REMOVED: import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'representative/professional_orders_screen.dart';
 import 'Other_screens/forget_password.dart';
@@ -22,7 +22,7 @@ class _AgentLoginPageState extends State<AgentLoginPage> {
   final _passwordController = TextEditingController();
 
   final LocalAuthentication _localAuth = LocalAuthentication();
-  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+  // REMOVED: final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
   bool _isLoading = false;
   bool _obscurePassword = true;
@@ -38,8 +38,8 @@ class _AgentLoginPageState extends State<AgentLoginPage> {
   Future<void> _checkBiometrics() async {
     try {
       final canAuthenticate = await _localAuth.canCheckBiometrics;
-      final hasCredentials = await _secureStorage.containsKey(key: 'agent_email') &&
-          await _secureStorage.containsKey(key: 'agent_password');
+      final prefs = await SharedPreferences.getInstance();
+      final hasCredentials = prefs.containsKey('agent_email') && prefs.containsKey('agent_password');
 
       setState(() {
         _canCheckBiometrics = canAuthenticate;
@@ -81,8 +81,9 @@ class _AgentLoginPageState extends State<AgentLoginPage> {
       );
 
       if (authenticated) {
-        final email = await _secureStorage.read(key: 'agent_email');
-        final password = await _secureStorage.read(key: 'agent_password');
+        final prefs = await SharedPreferences.getInstance();
+        final email = prefs.getString('agent_email');
+        final password = prefs.getString('agent_password');
 
         if (email != null && password != null) {
           _emailController.text = email;
@@ -126,8 +127,8 @@ class _AgentLoginPageState extends State<AgentLoginPage> {
 
         // Save credentials for biometric login next time
         if (!fromBiometric) {
-          await _secureStorage.write(key: 'agent_email', value: _emailController.text.trim());
-          await _secureStorage.write(key: 'agent_password', value: _passwordController.text.trim());
+          await prefs.setString('agent_email', _emailController.text.trim());
+          await prefs.setString('agent_password', _passwordController.text.trim());
         }
 
         final userRole = _getUserRoleFromToken(token);
