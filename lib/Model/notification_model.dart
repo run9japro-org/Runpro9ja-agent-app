@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
 // models/notification_model.dart
+import 'package:flutter/material.dart';
+
 class NotificationModel {
   final String id;
   final String userId;
@@ -52,8 +53,8 @@ class NotificationModel {
       'user': userId,
       'title': title,
       'message': message,
-      'type': type.toString().split('.').last,
-      'priority': priority.toString().split('.').last,
+      'type': _convertNotificationTypeToString(type),
+      'priority': _convertNotificationPriorityToString(priority),
       'data': data,
       'isRead': isRead,
       'actionUrl': actionUrl,
@@ -135,6 +136,19 @@ class NotificationModel {
     }
   }
 
+  static String _convertNotificationTypeToString(NotificationType type) {
+    switch (type) {
+      case NotificationType.orderUpdate: return 'order_update';
+      case NotificationType.payment: return 'payment';
+      case NotificationType.system: return 'system';
+      case NotificationType.promotion: return 'promotion';
+      case NotificationType.agentAssigned: return 'agent_assigned';
+      case NotificationType.deliveryStatus: return 'delivery_status';
+      case NotificationType.chat: return 'chat';
+      case NotificationType.review: return 'review';
+    }
+  }
+
   static NotificationPriority _parseNotificationPriority(String priority) {
     switch (priority) {
       case 'low': return NotificationPriority.low;
@@ -142,6 +156,15 @@ class NotificationModel {
       case 'high': return NotificationPriority.high;
       case 'urgent': return NotificationPriority.urgent;
       default: return NotificationPriority.medium;
+    }
+  }
+
+  static String _convertNotificationPriorityToString(NotificationPriority priority) {
+    switch (priority) {
+      case NotificationPriority.low: return 'low';
+      case NotificationPriority.medium: return 'medium';
+      case NotificationPriority.high: return 'high';
+      case NotificationPriority.urgent: return 'urgent';
     }
   }
 }

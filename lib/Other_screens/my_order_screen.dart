@@ -1,9 +1,10 @@
+// my_orders_screen.dart
 import 'package:flutter/material.dart';
 import '../Auth/order_service.dart';
 import '../Model/order_model.dart';
-
 import '../Auth/auth_services.dart';
-import 'order_details_screen.dart';
+import 'customer_agent_chats_screen.dart';
+import 'order_details_screen.dart';// Make sure to import your chat screen
 
 class MyOrdersScreen extends StatefulWidget {
   const MyOrdersScreen({Key? key}) : super(key: key);
@@ -14,17 +15,19 @@ class MyOrdersScreen extends StatefulWidget {
 
 class _MyOrdersScreenState extends State<MyOrdersScreen> {
   final OrderService _orderService = OrderService(AuthService());
+  final AuthService _authService = AuthService();
 
   List<Order> _allOrders = [];
   List<Order> _filteredOrders = [];
   bool _isLoading = true;
   String _error = '';
-  String _selectedFilter = 'active'; // active, completed, all
+  String _selectedFilter = 'active';
   double _totalEarnings = 0;
 
   @override
   void initState() {
     super.initState();
+    _initializeAuth();
     _loadOrders();
   }
 
@@ -37,10 +40,40 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
 
       final orders = await _orderService.getAgentOrders();
 
-      // Calculate total earnings from completed orders
-      final completedEarnings = orders
-          .where((order) => order.status == 'completed')
-          .fold(0.0, (sum, order) => sum + order.price);
+      // **DEBUG: Check all orders and their prices**
+      print('🔄 LOADING ORDERS DEBUG:');
+      print('   - Total orders fetched: ${orders.length}');
+
+      // Calculate total earnings from completed orders - FIXED VERSION
+      double completedEarnings = 0.0;
+      int completedCount = 0;
+
+      for (var order in orders) {
+        print('   - Order ${order.id}: status=${order.status}, price=${order.price} (type: ${order.price.runtimeType})');
+
+        if (order.status == 'completed') {
+          completedCount++;
+
+          // **FIXED: Ensure we're using the correct price**
+          double orderPrice;
+          if (order.price is int) {
+            orderPrice = (order.price as int).toDouble();
+          } else if (order.price is double) {
+            orderPrice = order.price;
+          } else if (order.price is String) {
+            orderPrice = double.tryParse(order.price as String) ?? 0.0;
+          } else {
+            orderPrice = 0.0;
+          }
+
+          completedEarnings += orderPrice;
+          print('     ✅ COMPLETED ORDER: Adding ₦$orderPrice (Total: ₦$completedEarnings)');
+        }
+      }
+
+      print('💰 FINAL EARNINGS CALCULATION:');
+      print('   - Completed orders: $completedCount');
+      print('   - Total earnings: ₦$completedEarnings');
 
       setState(() {
         _allOrders = orders;
@@ -49,6 +82,7 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
         _isLoading = false;
       });
     } catch (e) {
+      print('❌ ERROR loading orders: $e');
       setState(() {
         _error = 'Failed to load orders: $e';
         _isLoading = false;
@@ -75,7 +109,10 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
     }
     _filteredOrders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
-
+  Future<void> _initializeAuth() async {
+    await _authService.initializeCurrentUser();
+    _checkAuthStatus(); // Debug info
+  }
   Future<void> _updateOrderStatus(Order order, String newStatus) async {
     try {
       final success = await _orderService.updateOrderStatus(order.id, newStatus);
@@ -88,7 +125,7 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
             behavior: SnackBarBehavior.floating,
           ),
         );
-        await _loadOrders(); // Refresh the list
+        await _loadOrders();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -107,6 +144,109 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
         ),
       );
     }
+  }
+  void _checkAuthStatus() {
+    final currentUser = _authService.currentUser;
+    final token = _authService.getToken();
+
+    print('🔐 AUTH STATUS IN MY ORDERS:');
+    print('   - Current user: ${currentUser?.id}');
+    print('   - Current user name: ${currentUser?.name}');
+    print('   - Token available: ${token != null}');
+  }
+  // ✅ ADD THIS: Method to open chat with customer
+  // In MyOrdersScreen - update the _openChatWithCustomer method
+  Future<void> _openChatWithCustomer(Order order) async {
+    // Debug order info
+    print('💬 CHAT DEBUG - Order Info:');
+    print('   - Customer ID: ${order.customerId}');
+    print('   - Customer Data: ${order.customer}');
+    print('   - Customer Image: ${order.customer?['profileImage']}');
+    print('   - Customer Image Type: ${order.customer?['profileImage'].runtimeType}');
+    print('   - Order Status: ${order.status}');
+
+    if (order.customer == null || order.customerId == 'unknown_customer') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Customer information not available'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    // Check authentication using multiple methods
+    final isLoggedIn = await _authService.isLoggedIn();
+    final currentUser = _authService.currentUser;
+    final token = await _authService.getToken();
+
+    print('🔐 AUTH CHECK FOR CHAT:');
+    print('   - Is logged in: $isLoggedIn');
+    print('   - Current user: ${currentUser?.id}');
+    print('   - Token available: ${token != null && token.isNotEmpty}');
+
+    if (!isLoggedIn || token == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please login to continue'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    // If currentUser is null but we have a token, try to get user data from token
+    String userId;
+    if (currentUser != null) {
+      userId = currentUser.id;
+    } else {
+      final userData = await _authService.getUserData();
+      userId = userData?['userId'] ?? userData?['id'] ?? '';
+
+      if (userId.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Unable to get user information. Please login again.'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+    }
+
+    // ✅ FIXED: Handle null customer image properly
+    String customerImage = '';
+    if (order.customer?['profileImage'] != null) {
+      customerImage = order.customer!['profileImage'].toString();
+      print('🖼️ Using customer profile image: $customerImage');
+    } else {
+      print('🖼️ No customer profile image found, using generated avatar');
+    }
+
+    print('🚀 OPENING CHAT:');
+    print('   - User ID: $userId');
+    print('   - Customer ID: ${order.customerId}');
+    print('   - Customer Name: ${order.customer?['fullName']}');
+    print('   - Customer Image: $customerImage');
+    print('   - Order ID: ${order.id}');
+
+    // Navigate to chat screen
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AgentCustomerChatScreen(
+          customerId: order.customerId,
+          customerName: order.customer?['fullName'] ?? 'Customer',
+          customerImage: customerImage, // Use the processed image
+          orderId: order.id,
+          authToken: token,
+          currentUserId: userId,
+        ),
+      ),
+    );
   }
 
   void _showStatusUpdateDialog(Order order) {
@@ -234,7 +374,7 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header with status and actions
+              // Header with status and actions - UPDATED
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -263,6 +403,14 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
                   ),
                   Row(
                     children: [
+                      // **ADDED: Chat Button - Only show for active orders**
+                      if ((order.status == 'accepted' || order.status == 'in-progress') && order.customerId != 'unknown_customer')
+                        IconButton(
+                          onPressed: () => _openChatWithCustomer(order),
+                          icon: Icon(Icons.chat_outlined, size: 18),
+                          tooltip: 'Chat with Customer',
+                          color: Colors.blue,
+                        ),
                       if (order.status == 'accepted' || order.status == 'in-progress')
                         IconButton(
                           onPressed: () => _showStatusUpdateDialog(order),
@@ -348,7 +496,7 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
                 ],
               ),
 
-              // Customer Info if available
+              // Customer Info if available - UPDATED with chat hint
               if (order.customer != null) ...[
                 SizedBox(height: 12),
                 Container(
@@ -361,17 +509,40 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
                     children: [
                       Icon(Icons.person_outline, size: 14, color: Colors.grey),
                       SizedBox(width: 6),
-                      Text(
-                        'Customer: ${order.customer!['fullName'] ?? 'Unknown'}',
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      Expanded(
+                        child: Text(
+                          'Customer: ${order.customer!['fullName'] ?? 'Unknown'}',
+                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        ),
                       ),
                       if (order.customer!['phone'] != null) ...[
-                        SizedBox(width: 12),
+                        SizedBox(width: 8),
                         Icon(Icons.phone_outlined, size: 12, color: Colors.grey),
                         SizedBox(width: 4),
                         Text(
                           order.customer!['phone'],
                           style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        ),
+                      ],
+                      // **ADDED: Chat hint for active orders**
+                      if (order.status == 'accepted' || order.status == 'in-progress') ...[
+                        SizedBox(width: 8),
+                        Container(
+                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.chat, size: 10, color: Colors.blue),
+                              SizedBox(width: 4),
+                              Text(
+                                'Chat available',
+                                style: TextStyle(fontSize: 10, color: Colors.blue),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ],

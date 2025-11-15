@@ -31,7 +31,7 @@ class _UploadImageScreenState extends State<UploadImageScreen> {
     try {
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse('https://runpro9ja-backend.onrender.com/api/agents/upload-profile'),
+        Uri.parse('https://runpro9ja-pxqoa.ondigitalocean.app/api/agents/upload-profile'),
       );
 
       request.headers['Authorization'] = 'Bearer ${widget.token}';

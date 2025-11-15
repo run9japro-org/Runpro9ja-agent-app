@@ -11,20 +11,35 @@ class ChatService {
 
   Future<List<ChatMessage>> getConversation(String withUserId) async {
     try {
+      print('📨 Fetching conversation with user: $withUserId');
+
       final response = await http.get(
-        Uri.parse('$baseUrl/chat/$withUserId'), // Changed from '/chat/conversation/$withUserId'
+        Uri.parse('$baseUrl/chat/$withUserId'),
         headers: {
           'Authorization': 'Bearer $authToken',
           'Content-Type': 'application/json',
         },
       );
 
+      print('🔍 Response status: ${response.statusCode}');
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final List<dynamic> messagesJson = data['msgs'];
-        return messagesJson.map((json) => ChatMessage.fromJson(json)).toList();
+
+        print('📨 Found ${messagesJson.length} messages');
+
+        final messages = messagesJson.map((json) => ChatMessage.fromJson(json)).toList();
+
+        // Sort by creation date (oldest first)
+        messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+
+        return messages;
+      } else if (response.statusCode == 404) {
+        print('💬 No existing conversation found, starting new one');
+        return [];
       } else {
-        throw Exception('Failed to load conversation: ${response.statusCode}');
+        throw Exception('Failed to load conversation: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
       print('❌ Error getting conversation: $e');
@@ -38,24 +53,39 @@ class ChatService {
     String? orderId,
   }) async {
     try {
+      print('📤 Sending message to: $receiverId');
+      print('📝 Message: $message');
+
+      final Map<String, dynamic> requestBody = {
+        'receiverId': receiverId,
+        'message': message,
+      };
+
+      if (orderId != null && orderId.isNotEmpty) {
+        requestBody['orderId'] = orderId;
+      }
+
       final response = await http.post(
-        Uri.parse('$baseUrl/chat'), // This is correct
+        Uri.parse('$baseUrl/chat'),
         headers: {
           'Authorization': 'Bearer $authToken',
           'Content-Type': 'application/json',
         },
-        body: json.encode({
-          'receiverId': receiverId,
-          'message': message,
-          'orderId': orderId,
-        }),
+        body: json.encode(requestBody),
       );
 
-      if (response.statusCode == 200) {
+      print('🔍 Send message response status: ${response.statusCode}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
         final data = json.decode(response.body);
-        return ChatMessage.fromJson(data['msg']);
+
+        if (data['msg'] != null) {
+          return ChatMessage.fromJson(data['msg']);
+        } else {
+          return ChatMessage.fromJson(data);
+        }
       } else {
-        throw Exception('Failed to send message: ${response.statusCode}');
+        throw Exception('Failed to send message: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
       print('❌ Error sending message: $e');
@@ -63,11 +93,13 @@ class ChatService {
     }
   }
 
-  // Remove or update this method since you don't have this route in your backend
-  Future<List<Conversation>> getConversations() async {
+  // Mark single message as read via API
+  Future<void> markAsRead(String messageId) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/chat/conversations'), // This route doesn't exist in your backend
+      print('✅ Marking message as read via API: $messageId');
+
+      final response = await http.put(
+        Uri.parse('$baseUrl/chat/mark-read/$messageId'),
         headers: {
           'Authorization': 'Bearer $authToken',
           'Content-Type': 'application/json',
@@ -75,29 +107,72 @@ class ChatService {
       );
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final List<dynamic> conversationsJson = data['conversations'];
-        return conversationsJson.map((json) => Conversation.fromJson(json)).toList();
+        print('✅ Message $messageId marked as read successfully');
       } else {
-        throw Exception('Failed to load conversations: ${response.statusCode}');
+        print('⚠️ Failed to mark message as read: ${response.statusCode}');
       }
-    } catch (e) {
-      print('❌ Error getting conversations: $e');
-      rethrow;
-    }
-  }
-
-  // Remove or update this method since you don't have this route in your backend
-  Future<void> markAsRead(String messageId) async {
-    try {
-      await http.put(
-        Uri.parse('$baseUrl/chat/mark-read/$messageId'), // This route doesn't exist in your backend
-        headers: {
-          'Authorization': 'Bearer $authToken',
-        },
-      );
     } catch (e) {
       print('❌ Error marking message as read: $e');
     }
   }
+
+  // Mark multiple messages as read via API
+  Future<void> markMessagesAsRead(List<String> messageIds) async {
+    try {
+      print('✅ Marking ${messageIds.length} messages as read via API');
+
+      final response = await http.put(
+        Uri.parse('$baseUrl/chat/mark-read-bulk'),
+        headers: {
+          'Authorization': 'Bearer $authToken',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'messageIds': messageIds,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        print('✅ ${messageIds.length} messages marked as read successfully');
+      } else {
+        print('⚠️ Failed to mark messages as read: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error marking messages as read: $e');
+    }
+  }
+  // ✅ Fetch customer profile details
+  // In ChatService class - ADD THIS METHOD
+  Future<Map<String, dynamic>> getCustomerProfile(String customerId) async {
+    try {
+      print('🔍 Fetching customer profile for ID: $customerId');
+
+      final response = await http.get(
+        Uri.parse('https://runpro9ja-pxqoa.ondigitalocean.app/api/customers/$customerId'),
+        headers: {
+          'Authorization': 'Bearer $authToken',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      print('📡 Profile API Response Status: ${response.statusCode}');
+      print('📡 Profile API Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        print('✅ Customer profile loaded successfully: $data');
+        return data;
+      } else {
+        print('❌ Failed to load customer profile: ${response.statusCode}');
+        throw Exception('Failed to load customer profile: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error fetching customer profile: $e');
+      rethrow;
+    }
+  }
+  bool get isConfigured {
+    return authToken != null && authToken!.isNotEmpty;
+  }
 }
+

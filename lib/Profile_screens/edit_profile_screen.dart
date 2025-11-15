@@ -51,7 +51,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString("jwtToken");
 
-    final url = Uri.parse("https://runpro9ja-backend.onrender.com/api/agents/update");
+    final url = Uri.parse("https://runpro9ja-pxqoa.ondigitalocean.app/api/agents/me");
     final request = http.MultipartRequest("PUT", url);
     request.headers["Authorization"] = "Bearer $token";
 

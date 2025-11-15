@@ -5,8 +5,13 @@ import 'add_account_screen.dart';
 
 class WithdrawScreen extends StatefulWidget {
   final String userToken;
+  final double totalEarnings; // Add this parameter
 
-  const WithdrawScreen({Key? key, required this.userToken}) : super(key: key);
+  const WithdrawScreen({
+    Key? key,
+    required this.userToken,
+    required this.totalEarnings, // Make it required
+  }) : super(key: key);
 
   @override
   State<WithdrawScreen> createState() => _WithdrawScreenState();
@@ -15,7 +20,7 @@ class WithdrawScreen extends StatefulWidget {
 class _WithdrawScreenState extends State<WithdrawScreen> {
   final TextEditingController _amountController = TextEditingController();
   final WithdrawalService _withdrawalService = WithdrawalService();
-  final AuthService _authService = AuthService(); // Create instance once
+  final AuthService _authService = AuthService();
 
   double walletBalance = 0.0;
   bool _isLoading = false;
@@ -23,13 +28,13 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
   String? selectedBankCode;
   String? selectedAccountNumber;
   String? selectedBankName;
-  String? _userToken; // Store the token here
+  String? _userToken;
 
   @override
   void initState() {
     super.initState();
-    _fetchWalletBalance();
-    _loadToken(); // Load token on init
+    _loadToken();
+    _initializeBalance(); // Use the new method
   }
 
   Future<void> _loadToken() async {
@@ -39,19 +44,49 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
     });
   }
 
-  Future<void> _fetchWalletBalance() async {
+  Future<void> _initializeBalance() async {
     try {
       setState(() => _isFetchingBalance = true);
-      // TODO: Replace with actual API call
-      await Future.delayed(const Duration(seconds: 1)); // Simulate API call
-      setState(() => walletBalance = 15000.00);
+
+      // Use the passed totalEarnings as the wallet balance
+      // You can also fetch from API here if needed, but use totalEarnings as fallback
+      setState(() {
+        walletBalance = widget.totalEarnings;
+        _isFetchingBalance = false;
+      });
+
+      // Optional: If you want to fetch actual wallet balance from API instead
+      // await _fetchWalletBalanceFromAPI();
+
     } catch (e) {
-      _showErrorSnackBar('Error fetching balance: $e');
-    } finally {
-      setState(() => _isFetchingBalance = false);
+      // Fallback to passed totalEarnings if API fails
+      setState(() {
+        walletBalance = widget.totalEarnings;
+        _isFetchingBalance = false;
+      });
+      print('Error initializing balance: $e');
     }
   }
 
+  // Optional: If you want to fetch from API instead of using passed value
+  Future<void> _fetchWalletBalanceFromAPI() async {
+    try {
+      // TODO: Replace with actual API call to get wallet balance
+      // For now, using the passed totalEarnings
+      await Future.delayed(const Duration(milliseconds: 500));
+      setState(() {
+        walletBalance = widget.totalEarnings;
+      });
+    } catch (e) {
+      // Fallback to passed totalEarnings
+      setState(() {
+        walletBalance = widget.totalEarnings;
+      });
+      print('Error fetching wallet balance: $e');
+    }
+  }
+
+  // Rest of your existing methods remain the same...
   Future<void> _requestWithdrawal() async {
     if (!_validateForm()) return;
 
@@ -66,7 +101,7 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
       return;
     }
 
-    if (amount < 100) { // Minimum withdrawal amount
+    if (amount < 100) {
       _showErrorSnackBar('Minimum withdrawal amount is ₦100');
       return;
     }
@@ -77,7 +112,6 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Use the stored token instead of widget.userToken
       final tokenToUse = _userToken ?? widget.userToken.replaceAll('Bearer ', '');
 
       final response = await _withdrawalService.requestWithdrawal(
@@ -90,7 +124,12 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
       _showSuccessSnackBar(response['message'] ?? 'Withdrawal requested successfully!');
 
       _amountController.clear();
-      await _fetchWalletBalance();
+
+      // Update balance after withdrawal
+      setState(() {
+        walletBalance -= amount;
+      });
+
     } catch (e) {
       _showErrorSnackBar('Withdrawal failed: $e');
     } finally {
@@ -98,6 +137,7 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
     }
   }
 
+  // ... rest of your existing methods (validateForm, showConfirmationDialog, etc.)
   bool _validateForm() {
     if (_amountController.text.isEmpty) {
       _showErrorSnackBar('Please enter amount');
@@ -189,7 +229,7 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
         child: Column(
           children: [
             Text(
-              "Wallet Balance",
+              "Available Balance",
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: Colors.grey.shade600,
               ),
@@ -203,6 +243,14 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
                 color: Colors.green,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Based on your completed services',
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 12,
               ),
             ),
           ],
@@ -257,7 +305,6 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
   }
 
   Future<void> _navigateToAddAccount() async {
-    // Get the token when needed
     final token = await _authService.getToken();
 
     if (token == null) {

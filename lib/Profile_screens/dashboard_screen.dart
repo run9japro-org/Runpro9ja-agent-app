@@ -499,7 +499,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                         if (!snapshot.hasData || snapshot.data!.isEmpty) {
                                           return const Center(child: Text("No token found"));
                                         }
-                                        return WithdrawScreen(userToken: snapshot.data!);
+                                        return WithdrawScreen(userToken: snapshot.data!,totalEarnings: _totalEarnings,);
                                       },
                                     ),
                                   ),

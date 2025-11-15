@@ -37,6 +37,27 @@ class ChatMessage {
       'orderId': orderId,
     };
   }
+
+  // ✅ ADD THIS: copyWith method for updating message properties
+  ChatMessage copyWith({
+    String? id,
+    String? senderId,
+    String? receiverId,
+    String? message,
+    String? orderId,
+    DateTime? createdAt,
+    bool? read,
+  }) {
+    return ChatMessage(
+      id: id ?? this.id,
+      senderId: senderId ?? this.senderId,
+      receiverId: receiverId ?? this.receiverId,
+      message: message ?? this.message,
+      orderId: orderId ?? this.orderId,
+      createdAt: createdAt ?? this.createdAt,
+      read: read ?? this.read,
+    );
+  }
 }
 
 // models/conversation.dart
