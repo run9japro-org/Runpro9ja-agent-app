@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../Auth/auth_services.dart';
 import '../termsandcondition.dart';
 import 'otp_screen.dart';
@@ -17,6 +19,12 @@ class _SignupScreenState extends State<SignupScreen> {
   bool _obscurePassword = true;
   bool _isLoading = false;
   String _selectedCountryCode = '+234'; // Default to Nigeria
+
+  // Replace with your actual Google API Key
+  final String _googleApiKey = 'AIzaSyD3AF2pNNMqtivwpoLKSJ4l9Ok1dz1QOho';
+  List<dynamic> _placePredictions = [];
+  bool _isSearchingLocation = false;
+  final _locationFocusNode = FocusNode();
 
   final Map<String, TextEditingController> _controllers = {
     'name': TextEditingController(),
@@ -39,37 +47,20 @@ class _SignupScreenState extends State<SignupScreen> {
     {'code': '+27', 'country': 'South Africa', 'flag': '🇿🇦'},
   ];
 
-  // Popular Nigerian cities for autocomplete
-  final List<String> _nigerianCities = [
-    'Lagos',
-    'Abuja',
-    'Kano',
-    'Ibadan',
-    'Port Harcourt',
-    'Benin City',
-    'Kaduna',
-    'Enugu',
-    'Abeokuta',
-    'Jos',
-    'Ilorin',
-    'Warri',
-    'Aba',
-    'Calabar',
-    'Onitsha',
-  ];
-
-  List<String> _filteredCities = [];
-
   @override
   void initState() {
     super.initState();
     // Add listener to phone controller to format input
     _controllers['phone']!.addListener(_formatPhoneNumber);
+
+    // Add listener to location controller for autocomplete
+    _controllers['location']!.addListener(_onLocationTextChanged);
   }
 
   @override
   void dispose() {
     _controllers.forEach((_, controller) => controller.dispose());
+    _locationFocusNode.dispose();
     super.dispose();
   }
 
@@ -101,6 +92,73 @@ class _SignupScreenState extends State<SignupScreen> {
     }
   }
 
+  // Handle location text changes for autocomplete using Google Places API
+  void _onLocationTextChanged() async {
+    final query = _controllers['location']!.text.trim();
+
+    if (query.isEmpty || query.length < 2) {
+      setState(() {
+        _placePredictions = [];
+        _isSearchingLocation = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isSearchingLocation = true;
+    });
+
+    try {
+      final url = Uri.parse(
+          'https://maps.googleapis.com/maps/api/place/autocomplete/json?'
+              'input=$query'
+              '&key=$_googleApiKey'
+              '&components=country:ng' // Focus on Nigeria
+              '&language=en'
+              '&types=geocode' // You can change to '(cities)' if you only want cities
+      );
+
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        if (mounted) {
+          setState(() {
+            _placePredictions = data['predictions'] ?? [];
+            _isSearchingLocation = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _isSearchingLocation = false;
+            _placePredictions = [];
+          });
+        }
+        print('HTTP error: ${response.statusCode}');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSearchingLocation = false;
+          _placePredictions = [];
+        });
+      }
+      print('Google Places API error: $e');
+    }
+  }
+
+  // When a place is selected from suggestions
+  void _onPlaceSelected(Map<String, dynamic> prediction) {
+    setState(() {
+      _controllers['location']!.text = prediction['description'] ?? '';
+      _placePredictions = [];
+    });
+    // Remove focus to hide keyboard
+    _locationFocusNode.unfocus();
+  }
+
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -120,7 +178,7 @@ class _SignupScreenState extends State<SignupScreen> {
       final fullPhoneNumber = '$_selectedCountryCode$phoneDigits';
 
       final data = {
-        "role": "agents",
+        "role": "customer",
         "fullName": _controllers['name']!.text.trim(),
         "email": _controllers['email']!.text.trim(),
         "phone": fullPhoneNumber, // Full international number
@@ -467,33 +525,14 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-  // Location field with autocomplete
+  // Location field with Google Places autocomplete
   Widget _buildLocationField() {
-    return Autocomplete<String>(
-      optionsBuilder: (TextEditingValue textEditingValue) {
-        if (textEditingValue.text.isEmpty) {
-          return const Iterable<String>.empty();
-        }
-        return _nigerianCities.where((String city) {
-          return city.toLowerCase().contains(textEditingValue.text.toLowerCase());
-        });
-      },
-      onSelected: (String selection) {
-        _controllers['location']!.text = selection;
-      },
-      fieldViewBuilder: (BuildContext context,
-          TextEditingController fieldTextEditingController,
-          FocusNode fieldFocusNode,
-          VoidCallback onFieldSubmitted) {
-        // Sync the autocomplete controller with our main controller
-        fieldTextEditingController.text = _controllers['location']!.text;
-        fieldTextEditingController.addListener(() {
-          _controllers['location']!.text = fieldTextEditingController.text;
-        });
-
-        return TextFormField(
-          controller: fieldTextEditingController,
-          focusNode: fieldFocusNode,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextFormField(
+          controller: _controllers['location']!,
+          focusNode: _locationFocusNode,
           validator: (value) {
             if (value == null || value.isEmpty) {
               return "Please enter location";
@@ -501,9 +540,18 @@ class _SignupScreenState extends State<SignupScreen> {
             return null;
           },
           decoration: InputDecoration(
-            hintText: "Location (e.g Lagos)",
-            prefixIcon:
-            const Icon(Icons.location_on_outlined, color: Colors.grey),
+            hintText: "Start typing your location...",
+            prefixIcon: const Icon(Icons.location_on_outlined, color: Colors.grey),
+            suffixIcon: _isSearchingLocation
+                ? const Padding(
+              padding: EdgeInsets.all(12.0),
+              child: SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+                : null,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(color: Colors.grey[300]!),
@@ -521,8 +569,42 @@ class _SignupScreenState extends State<SignupScreen> {
             contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           ),
-        );
-      },
+        ),
+        // Suggestions list
+        if (_placePredictions.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(top: 4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _placePredictions.length,
+              itemBuilder: (context, index) {
+                final prediction = _placePredictions[index];
+                return ListTile(
+                  leading: const Icon(Icons.location_on, size: 20, color: Colors.grey),
+                  title: Text(
+                    prediction['description'] ?? '',
+                    style: const TextStyle(fontSize: 14),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onTap: () => _onPlaceSelected(prediction),
+                );
+              },
+            ),
+          ),
+      ],
     );
   }
 
